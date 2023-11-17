@@ -52,10 +52,8 @@ void InsecureCredentials() {
   // TODO
 }
 
-void SslCredentials(std::string address, std::string port,
-                    std::string credentials_directory) {
+void SslCredentials(std::string address, std::string credentials_directory) {
   // Load necessary files
-  std::string server_address = address + ":" + port;
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
   std::string key = read_file(credentials_directory + "client_key.pem");
   std::string cert = read_file(credentials_directory + "client_cert.pem");
@@ -67,7 +65,7 @@ void SslCredentials(std::string address, std::string port,
   auto channel_creds = grpc::SslCredentials(sslOpts);
   // Create the channel with those creds and send a request
   std::shared_ptr<Channel> channel =
-      grpc::CreateChannel(server_address, channel_creds);
+      grpc::CreateChannel(address, channel_creds);
   HelloClient client(channel);
   std::string user("world");
   std::string reply = client.Hello(user);
@@ -157,7 +155,7 @@ void run_case(std::string address, std::string port,
 }
 
 int main(int argc, char **argv) {
-  std::string address = "localhost";
+  std::string address = "localhost:8887";
 
   if (argc < 2) {
     std::cout << "Enter this repo's creds directory as the second "
@@ -166,46 +164,7 @@ int main(int argc, char **argv) {
   }
 
   std::string credentials_directory = argv[1];
+  SslCredentials(address, credentials_directory);
 
-  std::map<std::string, std::string> cases;
-  cases["8887"] = "[good server, no CRL]";
-  // cases["8886"] = "[revoked server, no CRL]";
-  // cases["8885"] = "[good server, with CRL]";
-  // cases["8884"] = "[revoked server, with CRL]";
-  for (auto const &c : cases) {
-    auto port = c.first;
-    auto description = c.second;
-
-    std::cout
-        << "=============================================================="
-           "==================\n";
-    std::cout << "Running against localhost:" << port << " " << description
-              << std::endl;
-    std::cout << "Client running with [good certificate, no CRL] at "
-              << description << std::endl;
-    bool should_fail = false;
-    run_case(address, port, credentials_directory, false, false, should_fail);
-    // std::cout <<
-    // "-------------------------------------------------------------"
-    //              "-------------------\n";
-    // std::cout << "Client running with [revoked certificate, no CRL] at "
-    //           << description << std::endl;
-    // should_fail = port == "8885" || port == "8884";
-    // run_case(address, port, credentials_directory, true, false, should_fail);
-    // std::cout <<
-    // "-------------------------------------------------------------"
-    //              "-------------------\n";
-    // std::cout << "Client running with [good certificate, CRL] at "
-    //           << description << std::endl;
-    // should_fail = port == "8886" || port == "8884";
-    // run_case(address, port, credentials_directory, false, true, should_fail);
-    // std::cout <<
-    // "-------------------------------------------------------------"
-    //              "-------------------\n";
-    // std::cout << "Client running with [revoked certificate, CRL] at "
-    //           << description << std::endl;
-    // should_fail = port == "8886" || port == "8884" || port == "8885";
-    // run_case(address, port, credentials_directory, true, true, should_fail);
-  }
   return 0;
 }

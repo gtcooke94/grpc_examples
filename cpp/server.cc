@@ -29,21 +29,12 @@ std::string read_file(std::string file_path) {
   return buffer.str();
 }
 
-int main(int argc, char **argv) {
-  std::string server_addr = "localhost:8887";
-  std::string server_addr_revoked = "localhost:8886";
-  std::string server_addr_uses_crl = "localhost:8885";
-  std::string server_addr_uses_crl_revoked = "localhost:8884";
+void InsecureCredentials() {
+  // TODO
+}
+
+void SslCredentials(std::string address, std::string credentials_directory) {
   HelloServiceImpl service;
-
-  if (argc < 2) {
-    std::cout << "Enter path to this repo's creds directory as the second "
-                 "argument\n$ /path/to/server /path/to/creds/\n";
-    return 1;
-  }
-
-  std::string credentials_directory = argv[1];
-
   std::string key = read_file(credentials_directory + "server_key.pem");
   std::string cert = read_file(credentials_directory + "server_cert.pem");
   std::string revoked_cert =
@@ -56,15 +47,59 @@ int main(int argc, char **argv) {
   sslOpts.pem_root_certs = ca_cert;
   sslOpts.force_client_auth = true;
 
-  grpc::SslServerCredentialsOptions::PemKeyCertPair revoked_pair = {
-      key, revoked_cert};
   grpc::SslServerCredentialsOptions sslOpts_revoked;
-  sslOpts_revoked.pem_key_cert_pairs.push_back(revoked_pair);
+  sslOpts_revoked.pem_key_cert_pairs.push_back(pair);
 
   ServerBuilder builder;
-  builder.AddListeningPort(server_addr, grpc::SslServerCredentials(sslOpts));
+  builder.AddListeningPort(address, grpc::SslServerCredentials(sslOpts));
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
+  server->Wait();
+}
+
+void TlsCredentials() {
+  // TODO
+}
+
+void TlsCredentialsWithCrlDirectory() {
+  // TODO
+}
+
+void TlsCredentialsWithCrlProvider() {
+  // TODO
+}
+
+int main(int argc, char **argv) {
+  std::string server_addr = "localhost:8887";
+  std::string server_addr_revoked = "localhost:8886";
+  std::string server_addr_uses_crl = "localhost:8885";
+  std::string server_addr_uses_crl_revoked = "localhost:8884";
+
+  if (argc < 2) {
+    std::cout << "Enter path to this repo's creds directory as the second "
+                 "argument\n$ /path/to/server /path/to/creds/\n";
+    return 1;
+  }
+
+  std::string credentials_directory = argv[1];
+
+  SslCredentials(server_addr, credentials_directory);
+
+  // grpc::SslServerCredentialsOptions::PemKeyCertPair pair = {key, cert};
+  // grpc::SslServerCredentialsOptions sslOpts;
+  // sslOpts.pem_key_cert_pairs.push_back(pair);
+  // sslOpts.pem_root_certs = ca_cert;
+  // sslOpts.force_client_auth = true;
+
+  // grpc::SslServerCredentialsOptions::PemKeyCertPair revoked_pair = {
+  //     key, revoked_cert};
+  // grpc::SslServerCredentialsOptions sslOpts_revoked;
+  // sslOpts_revoked.pem_key_cert_pairs.push_back(revoked_pair);
+
+  // ServerBuilder builder;
+  // builder.AddListeningPort(server_addr, grpc::SslServerCredentials(sslOpts));
+  // builder.RegisterService(&service);
+  // std::unique_ptr<Server> server(builder.BuildAndStart());
 
   //   ServerBuilder builder_revoked;
   //   builder_revoked.AddListeningPort(server_addr_revoked,
@@ -116,11 +151,12 @@ int main(int argc, char **argv) {
   //   std::unique_ptr<Server> server_uses_crl_revoked(
   //       builder_uses_crl_revoked.BuildAndStart());
 
-  std::cout << "Running servers with the following configuration:\n a server "
-               "with a good certificate on 8887\n a revoked "
-               "certificate on 8886\n a good certificate and a crl active on "
-               "8885\n a revoked certificate and a crl active on 8884\n";
+  // std::cout << "Running servers with the following configuration:\n a server
+  // "
+  //              "with a good certificate on 8887\n a revoked "
+  //              "certificate on 8886\n a good certificate and a crl active on
+  //              " "8885\n a revoked certificate and a crl active on 8884\n";
 
-  server->Wait();
+  // server->Wait();
   return 0;
 }
