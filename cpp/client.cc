@@ -76,95 +76,61 @@ void SslCredentials(std::string address, std::string credentials_directory) {
   }
 }
 
-void TlsCredentials() {
-  // TODO
-}
-
-void TlsCredentialsWithCrlDirectory() {
-  // TODO
-}
-
-void TlsCredentialsWithCrlProvider() {
-  // TODO
-}
-
-// Old purpose, clean this up
-void run_case(std::string address, std::string port,
-              std::string credentials_directory, bool use_revoked_cert,
-              bool use_crl, bool should_fail) {
-
-  std::string server_address = address + ":" + port;
-  grpc::experimental::TlsChannelCredentialsOptions options;
+void CrlProvider(std::string address, std::string credentials_directory,
+                 std::string crl_directory) {
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
   std::string key = read_file(credentials_directory + "client_key.pem");
   std::string cert = read_file(credentials_directory + "client_cert.pem");
-  std::string revoked_cert =
-      read_file(credentials_directory + "client_cert_revoked.pem");
 
-  if (use_crl) {
-    options.set_crl_directory(credentials_directory + "crl");
+  std::vector<grpc::experimental::IdentityKeyCertPair> identity_key_cert_pairs =
+      {{key, cert}};
+  auto certificate_provider_ptr =
+      std::make_shared<grpc::experimental::StaticDataCertificateProvider>(
+          ca_cert, identity_key_cert_pairs);
+
+  grpc::experimental::TlsChannelCredentialsOptions options;
+  options.set_certificate_provider(certificate_provider_ptr);
+  options.watch_root_certs();
+  options.watch_identity_key_cert_pairs();
+  options.set_root_cert_name("ca_cert");
+  grpc_init();
+  absl::StatusOr<std::shared_ptr<grpc_core::experimental::CrlProvider>>
+      crl_provider =
+          grpc_core::experimental::CreateDirectoryReloaderCrlProvider(
+              crl_directory, std::chrono::seconds(60), nullptr);
+  if (!crl_provider.ok()) {
+    std::cout << crl_provider.status() << std::endl;
+    return;
   }
-  std::string cert_to_use;
-  if (use_revoked_cert) {
-    cert_to_use = revoked_cert;
-  } else {
-    cert_to_use = cert;
-  }
-  // grpc::SslCredentialsOptions::PemKeyCertPair pair = {key, cert_to_use};
-  grpc::SslCredentialsOptions sslOpts;
-  sslOpts.pem_root_certs = ca_cert;
-  sslOpts.pem_private_key = key;
-  sslOpts.pem_cert_chain = cert_to_use;
-
-  // sslOpts.pem_key_cert_pairs.push_back(pair);
-  auto channel_creds = grpc::SslCredentials(sslOpts);
-  // std::vector<grpc::experimental::IdentityKeyCertPair>
-  // identity_key_cert_pairs =
-  //     {{key, cert_to_use}};
-  // auto certificate_provider_ptr =
-  //     std::make_shared<grpc::experimental::StaticDataCertificateProvider>(
-  //         ca_cert, identity_key_cert_pairs);
-  // options.set_certificate_provider(certificate_provider_ptr);
-  // options.watch_root_certs();
-  // options.set_root_cert_name("root_cert");
-  // options.watch_identity_key_cert_pairs();
-  // options.set_identity_cert_name("identity_certs");
-
-  // auto channel_creds = grpc::experimental::TlsCredentials(options);
-
+  options.set_crl_provider(*crl_provider);
+  auto channel_creds = grpc::experimental::TlsCredentials(options);
   std::shared_ptr<Channel> channel =
-      grpc::CreateChannel(server_address, channel_creds);
+      grpc::CreateChannel(address, channel_creds);
   HelloClient client(channel);
   std::string user("world");
   std::string reply = client.Hello(user);
-  if (should_fail) {
-    if (reply != "") {
-      std::cout << "Expected failure but got: " << reply << std::endl;
-    } else {
-      std::cout << "Handshake failed expectedly\n";
-    }
-
+  if (reply != "Hello world") {
+    std::cout << "Failure expected because of revoked server cert\n";
   } else {
-    if (reply != "Hello world") {
-      std::cout << "Expected to get \"Hello world\" but got something else.\n";
-
-    } else {
-      std::cout << "Greeter received: " << reply << std::endl;
-    }
+    std::cout << "Request should have failed but didn't\n"
+              << reply << std::endl;
   }
+  return;
 }
 
 int main(int argc, char **argv) {
-  std::string address = "localhost:8887";
+  std::string server_addr = "localhost:8887";
 
   if (argc < 2) {
-    std::cout << "Enter this repo's creds directory as the second "
-                 "argument\n/path/to/client <creds_directory>\n";
+    std::cout << "Enter path to this repo's creds directory as the second "
+                 "argument\n$ /path/to/server /path/to/creds/\n";
     return 1;
   }
 
   std::string credentials_directory = argv[1];
-  SslCredentials(address, credentials_directory);
+  std::string crl_directory = credentials_directory + "crl";
 
+  std::cout << "start" << std::endl;
+  CrlProvider(server_addr, credentials_directory, crl_directory);
   return 0;
 }

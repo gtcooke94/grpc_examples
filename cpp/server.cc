@@ -41,7 +41,7 @@ void SslCredentials(std::string address, std::string credentials_directory) {
       read_file(credentials_directory + "server_cert_revoked.pem");
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
 
-  grpc::SslServerCredentialsOptions::PemKeyCertPair pair = {key, cert};
+  grpc::SslServerCredentialsOptions::PemKeyCertPair pair = {key, revoked_cert};
   grpc::SslServerCredentialsOptions sslOpts;
   sslOpts.pem_key_cert_pairs.push_back(pair);
   sslOpts.pem_root_certs = ca_cert;
@@ -55,18 +55,6 @@ void SslCredentials(std::string address, std::string credentials_directory) {
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
   server->Wait();
-}
-
-void TlsCredentials() {
-  // TODO
-}
-
-void TlsCredentialsWithCrlDirectory() {
-  // TODO
-}
-
-void TlsCredentialsWithCrlProvider() {
-  // TODO
 }
 
 int main(int argc, char **argv) {
@@ -85,78 +73,5 @@ int main(int argc, char **argv) {
 
   SslCredentials(server_addr, credentials_directory);
 
-  // grpc::SslServerCredentialsOptions::PemKeyCertPair pair = {key, cert};
-  // grpc::SslServerCredentialsOptions sslOpts;
-  // sslOpts.pem_key_cert_pairs.push_back(pair);
-  // sslOpts.pem_root_certs = ca_cert;
-  // sslOpts.force_client_auth = true;
-
-  // grpc::SslServerCredentialsOptions::PemKeyCertPair revoked_pair = {
-  //     key, revoked_cert};
-  // grpc::SslServerCredentialsOptions sslOpts_revoked;
-  // sslOpts_revoked.pem_key_cert_pairs.push_back(revoked_pair);
-
-  // ServerBuilder builder;
-  // builder.AddListeningPort(server_addr, grpc::SslServerCredentials(sslOpts));
-  // builder.RegisterService(&service);
-  // std::unique_ptr<Server> server(builder.BuildAndStart());
-
-  //   ServerBuilder builder_revoked;
-  //   builder_revoked.AddListeningPort(server_addr_revoked,
-  //                                    grpc::SslServerCredentials(sslOpts_revoked));
-  //   builder_revoked.RegisterService(&service);
-  //   std::unique_ptr<Server> server_revoked(builder_revoked.BuildAndStart());
-
-  //   std::vector<grpc::experimental::IdentityKeyCertPair>
-  //   identity_key_cert_pairs =
-  //       {{key, cert}};
-  //   auto certificate_provider_ptr =
-  //       std::make_shared<grpc::experimental::StaticDataCertificateProvider>(
-  //           ca_cert, identity_key_cert_pairs);
-  //   grpc::experimental::TlsServerCredentialsOptions options(
-  //       certificate_provider_ptr);
-  //   // options.set_certificate_provider(certificate_provider_ptr);
-  //   options.watch_root_certs();
-  //   options.watch_identity_key_cert_pairs();
-  //   options.set_root_cert_name("ca_cert");
-  //   options.set_crl_directory(credentials_directory + "/crl");
-  //   options.set_cert_request_type(GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
-  //   auto server_creds = grpc::experimental::TlsServerCredentials(options);
-  //   ServerBuilder builder_uses_crl;
-  //   builder_uses_crl.AddListeningPort(server_addr_uses_crl, server_creds);
-  //   builder_uses_crl.RegisterService(&service);
-  //   std::unique_ptr<Server>
-  //   server_uses_crl(builder_uses_crl.BuildAndStart());
-
-  //   std::vector<grpc::experimental::IdentityKeyCertPair>
-  //       identity_key_cert_pairs_revoked = {{key, revoked_cert}};
-  //   auto certificate_provider_ptr_revoked =
-  //       std::make_shared<grpc::experimental::StaticDataCertificateProvider>(
-  //           ca_cert, identity_key_cert_pairs_revoked);
-  //   grpc::experimental::TlsServerCredentialsOptions options_revoked(
-  //       certificate_provider_ptr_revoked);
-  //   // options_revoked.set_certificate_provider(certificate_provider_ptr);
-  //   options_revoked.watch_root_certs();
-  //   options_revoked.watch_identity_key_cert_pairs();
-  //   options_revoked.set_root_cert_name("ca_cert");
-  //   options_revoked.set_crl_directory(credentials_directory + "/crl");
-  //   options_revoked.set_cert_request_type(
-  //       GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
-  //   auto server_creds_revoked =
-  //       grpc::experimental::TlsServerCredentials(options_revoked);
-  //   ServerBuilder builder_uses_crl_revoked;
-  //   builder_uses_crl_revoked.AddListeningPort(server_addr_uses_crl_revoked,
-  //                                             server_creds_revoked);
-  //   builder_uses_crl_revoked.RegisterService(&service);
-  //   std::unique_ptr<Server> server_uses_crl_revoked(
-  //       builder_uses_crl_revoked.BuildAndStart());
-
-  // std::cout << "Running servers with the following configuration:\n a server
-  // "
-  //              "with a good certificate on 8887\n a revoked "
-  //              "certificate on 8886\n a good certificate and a crl active on
-  //              " "8885\n a revoked certificate and a crl active on 8884\n";
-
-  // server->Wait();
   return 0;
 }
