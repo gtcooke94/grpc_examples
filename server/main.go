@@ -21,8 +21,6 @@ type server struct {
 }
 
 const credRefreshInterval = 1 * time.Minute
-const goodServerNoCrlPort int = 8887
-const revokedServerNoCrlPort int = 8886
 const goodServerWithCrlPort int = 8885
 const revokedServerWithCrlPort int = 8884
 
@@ -38,32 +36,28 @@ func main() {
 		fmt.Println("Must set credentials_directory argument")
 		os.Exit(1)
 	}
-	go func() {
-		createAndRunServer(*credentialsDirectory, false, false, goodServerNoCrlPort)
-	}()
-	go func() {
-		createAndRunServer(*credentialsDirectory, true, false, revokedServerNoCrlPort)
-	}()
-	go func() {
-		createAndRunServer(*credentialsDirectory, false, true, goodServerWithCrlPort)
-	}()
-	go func() {
-		createAndRunServer(*credentialsDirectory, true, true, revokedServerWithCrlPort)
-	}()
-
-	fmt.Printf(`Running servers with the following configuration:
-    a server with a good certificate on 8887
-    a revoked certificate on 8886
-    a good certificate and a crl active on  8885
-    a revoked certificate and a crl active on 8884
-Ctrl-C or kill the process to stop
-`)
+	TlsServers(*credentialsDirectory)
+	fmt.Printf("Ctrl-C or kill the process to stop")
 	for {
 		time.Sleep(1 * time.Second)
 	}
 }
 
-func createAndRunServer(credsDirectory string, useRevokedCert bool, useCrl bool, port int) {
+func TlsServers(credentialsDirectory string) {
+	go func() {
+		createAndRunTlsServer(credentialsDirectory, false, goodServerWithCrlPort)
+	}()
+	go func() {
+		createAndRunTlsServer(credentialsDirectory, true, revokedServerWithCrlPort)
+	}()
+
+	fmt.Printf(`Running servers with the following configuration:
+    a good certificate and a crl active on  8885
+    a revoked certificate and a crl active on 8884
+`)
+}
+
+func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int) {
 	identityProvider := makeIdentityProvider(useRevokedCert, credsDirectory)
 	defer identityProvider.Close()
 
@@ -81,10 +75,8 @@ func createAndRunServer(credsDirectory string, useRevokedCert bool, useCrl bool,
 		VType:             advancedtls.CertVerification,
 	}
 
-	if useCrl {
-		options.RevocationConfig = &advancedtls.RevocationConfig{
-			RootDir: filepath.Join(credsDirectory, "crl"),
-		}
+	options.RevocationConfig = &advancedtls.RevocationConfig{
+		RootDir: filepath.Join(credsDirectory, "crl"),
 	}
 
 	serverTLSCreds, err := advancedtls.NewServerCreds(options)

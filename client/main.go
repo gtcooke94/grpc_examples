@@ -19,6 +19,8 @@ import (
 const credRefreshInterval = 1 * time.Minute
 const serverAddr = "localhost"
 
+// -- TLS --
+
 func makeRootProvider(credsDirectory string) certprovider.Provider {
 	rootOptions := pemfile.Options{
 		RootFile:        filepath.Join(credsDirectory, "ca_cert.pem"),
@@ -52,7 +54,8 @@ func makeIdentityProvider(revoked bool, credsDirectory string) certprovider.Prov
 	return identityProvider
 }
 
-func runClientWithProviders(rootProvider certprovider.Provider, identityProvider certprovider.Provider, useCrl bool, credsDirectory string, port string, shouldFail bool) {
+func runClientWithProviders(rootProvider certprovider.Provider, identityProvider certprovider.Provider, credsDirectory string, port string, shouldFail bool) {
+	// Configure the Identity and Root certs in the Client
 	options := &advancedtls.ClientOptions{
 		IdentityOptions: advancedtls.IdentityCertificateOptions{
 			IdentityProvider: identityProvider,
@@ -62,10 +65,10 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 		},
 		VType: advancedtls.CertVerification,
 	}
-	if useCrl {
-		options.RevocationConfig = &advancedtls.RevocationConfig{
-			RootDir: filepath.Join(credsDirectory, "crl"),
-		}
+
+	// Configure revocation and CRLs
+	options.RevocationConfig = &advancedtls.RevocationConfig{
+		RootDir: filepath.Join(credsDirectory, "crl"),
 	}
 
 	clientTLSCreds, err := advancedtls.NewClientCreds(options)
@@ -107,6 +110,35 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 	}
 }
 
+// port 8885 runs a server with an  unrevoked certificate
+func TlsWithCrlsToGoodServer(credsDirectory string) {
+	rootProvider := makeRootProvider(credsDirectory)
+	defer rootProvider.Close()
+	fmt.Println("Client running against good server.")
+	identityProvider := makeIdentityProvider(false, credsDirectory)
+	runClientWithProviders(rootProvider, identityProvider, credsDirectory, "8885", false)
+	identityProvider.Close()
+}
+
+// port 8884 runs a server with a revoked certificate
+func TlsWithCrlsToRevokedServer(credsDirectory string) {
+	rootProvider := makeRootProvider(credsDirectory)
+	defer rootProvider.Close()
+	fmt.Println("Client running against revoked server.")
+	identityProvider := makeIdentityProvider(false, credsDirectory)
+	runClientWithProviders(rootProvider, identityProvider, credsDirectory, "8884", true)
+	identityProvider.Close()
+}
+
+func TlsWithCrls(credsDirectory string) {
+	TlsWithCrlsToGoodServer(credsDirectory)
+	TlsWithCrlsToRevokedServer(credsDirectory)
+}
+
+// -- SSL --
+
+// -- Insecure --
+
 func main() {
 	credsDirectory := flag.String("credentials_directory", "", "Path to the creds directory of this repo")
 	flag.Parse()
@@ -114,50 +146,6 @@ func main() {
 	if *credsDirectory == "" {
 		fmt.Println("Must set credentials_directory argument to this repo's creds directory")
 		os.Exit(1)
-
 	}
-
-	rootProvider := makeRootProvider(*credsDirectory)
-	defer rootProvider.Close()
-	cases := make(map[string]string)
-	cases["8887"] = "[good server, no CRL]"
-	cases["8886"] = "[revoked server, no CRL]"
-	cases["8885"] = "[good server, with CRL]"
-	cases["8884"] = "[revoked server, with CRL]"
-
-	shouldFail := false
-	for port, description := range cases {
-		fmt.Println("================================================================================")
-		fmt.Println("Running against localhost:" + port + " " + description)
-		fmt.Println("Client Running with [good certificate, no CRL] at " + description)
-		identityProvider := makeIdentityProvider(false, *credsDirectory)
-		// Should always pass
-		shouldFail = false
-		runClientWithProviders(rootProvider, identityProvider, false, *credsDirectory, port, shouldFail)
-		identityProvider.Close()
-		fmt.Println("--------------------------------------------------------------------------------")
-
-		fmt.Println("Client Running with [revoked certificate, no CRL] at " + description)
-		identityProvider = makeIdentityProvider(true, *credsDirectory)
-		// Fail if Server is using CRL
-		shouldFail = port == "8885" || port == "8884"
-		runClientWithProviders(rootProvider, identityProvider, false, *credsDirectory, port, shouldFail)
-		identityProvider.Close()
-		fmt.Println("--------------------------------------------------------------------------------")
-
-		fmt.Println("Client Running with [good certificate, CRL] at " + description)
-		identityProvider = makeIdentityProvider(false, *credsDirectory)
-		// Fail if the server cert is revoked
-		shouldFail = port == "8886" || port == "8884"
-		runClientWithProviders(rootProvider, identityProvider, true, *credsDirectory, port, shouldFail)
-		identityProvider.Close()
-		fmt.Println("--------------------------------------------------------------------------------")
-
-		fmt.Println("Client Running with [revoked certificate, CRL] at " + description)
-		identityProvider = makeIdentityProvider(true, *credsDirectory)
-		// Fail if server cert is revoked or the server is using a CRL
-		shouldFail = port == "8886" || port == "8884" || port == "8885"
-		runClientWithProviders(rootProvider, identityProvider, true, *credsDirectory, port, shouldFail)
-		identityProvider.Close()
-	}
+	TlsWithCrls(*credsDirectory)
 }
