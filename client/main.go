@@ -54,7 +54,7 @@ func makeIdentityProvider(revoked bool, credsDirectory string) certprovider.Prov
 	return identityProvider
 }
 
-func runClientWithProviders(rootProvider certprovider.Provider, identityProvider certprovider.Provider, credsDirectory string, port string, shouldFail bool) {
+func runClientWithProviders(rootProvider certprovider.Provider, identityProvider certprovider.Provider, crlProvider advancedtls.CRLProvider, port string, shouldFail bool) {
 	// Configure the Identity and Root certs in the Client
 	options := &advancedtls.ClientOptions{
 		IdentityOptions: advancedtls.IdentityCertificateOptions{
@@ -68,7 +68,7 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 
 	// Configure revocation and CRLs
 	options.RevocationConfig = &advancedtls.RevocationConfig{
-		RootDir: filepath.Join(credsDirectory, "crl"),
+		CRLProvider: crlProvider,
 	}
 
 	clientTLSCreds, err := advancedtls.NewClientCreds(options)
@@ -114,25 +114,43 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 func TlsWithCrlsToGoodServer(credsDirectory string) {
 	rootProvider := makeRootProvider(credsDirectory)
 	defer rootProvider.Close()
-	fmt.Println("Client running against good server.")
 	identityProvider := makeIdentityProvider(false, credsDirectory)
-	runClientWithProviders(rootProvider, identityProvider, credsDirectory, "8885", false)
-	identityProvider.Close()
+	defer identityProvider.Close()
+	crlProvider := makeCrlProvider(credsDirectory)
+	defer crlProvider.Close()
+
+	fmt.Println("Client running against good server.")
+	runClientWithProviders(rootProvider, identityProvider, crlProvider, "8885", false)
 }
 
 // port 8884 runs a server with a revoked certificate
 func TlsWithCrlsToRevokedServer(credsDirectory string) {
 	rootProvider := makeRootProvider(credsDirectory)
 	defer rootProvider.Close()
-	fmt.Println("Client running against revoked server.")
 	identityProvider := makeIdentityProvider(false, credsDirectory)
-	runClientWithProviders(rootProvider, identityProvider, credsDirectory, "8884", true)
+	crlProvider := makeCrlProvider(credsDirectory)
+	defer crlProvider.Close()
+
+	fmt.Println("Client running against revoked server.")
+	runClientWithProviders(rootProvider, identityProvider, crlProvider, "8884", true)
 	identityProvider.Close()
 }
 
 func TlsWithCrls(credsDirectory string) {
 	TlsWithCrlsToGoodServer(credsDirectory)
 	TlsWithCrlsToRevokedServer(credsDirectory)
+}
+
+func makeCrlProvider(crlDirectory string) *advancedtls.FileWatcherCRLProvider {
+	options := advancedtls.FileWatcherOptions{
+		CRLDirectory: crlDirectory,
+	}
+	provider, err := advancedtls.NewFileWatcherCRLProvider(options)
+	if err != nil {
+		fmt.Printf("Error making CRL Provider: %v\nExiting...", err)
+		os.Exit(1)
+	}
+	return provider
 }
 
 // -- SSL --

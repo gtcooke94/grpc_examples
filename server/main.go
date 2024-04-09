@@ -64,6 +64,9 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 	rootProvider := makeRootProvider(credsDirectory)
 	defer rootProvider.Close()
 
+	crlProvider := makeCrlProvider(filepath.Join(credsDirectory, "crl"))
+	defer crlProvider.Close()
+
 	options := &advancedtls.ServerOptions{
 		IdentityOptions: advancedtls.IdentityCertificateOptions{
 			IdentityProvider: identityProvider,
@@ -76,7 +79,7 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 	}
 
 	options.RevocationConfig = &advancedtls.RevocationConfig{
-		RootDir: filepath.Join(credsDirectory, "crl"),
+		CRLProvider: crlProvider,
 	}
 
 	serverTLSCreds, err := advancedtls.NewServerCreds(options)
@@ -130,4 +133,17 @@ func makeIdentityProvider(useRevokedCert bool, credsDirectory string) certprovid
 		os.Exit(1)
 	}
 	return identityProvider
+}
+
+func makeCrlProvider(crlDirectory string) *advancedtls.FileWatcherCRLProvider {
+	options := advancedtls.FileWatcherOptions{
+		CRLDirectory: crlDirectory,
+	}
+	provider, err := advancedtls.NewFileWatcherCRLProvider(options)
+	if err != nil {
+		fmt.Printf("Error making CRL Provider: %v\nExiting...", err)
+		os.Exit(1)
+	}
+	return provider
+
 }
