@@ -145,5 +145,4 @@ func makeCrlProvider(crlDirectory string) *advancedtls.FileWatcherCRLProvider {
 		os.Exit(1)
 	}
 	return provider
-
 }
