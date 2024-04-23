@@ -145,7 +145,7 @@ void TlsCredentialsWithCrlProvider(std::string credentials_directory,
     std::cout << "ERROR: There was a problem creating the crl provider.\n";
   }
   options.set_crl_provider(*crl_provider);
-  grpc::experimental::TlsCredentials(options);
+  auto channel_creds = grpc::experimental::TlsCredentials(options);
 
   // Create the channel with those creds and send a request
   std::shared_ptr<Channel> channel =
