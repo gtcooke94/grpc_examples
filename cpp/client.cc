@@ -16,7 +16,7 @@ using grpc::Status;
 // const goodServerPort string = "8885"
 // const revokedServerPort string = "8884"
 const std::string kGoodServerAddress = "localhost:8887";
-const std::string kRevokedServerAddress = "TODO";
+const std::string kRevokedServerAddress = "localhost:8886";
 
 class HelloClient {
 public:
@@ -57,7 +57,7 @@ void InsecureCredentials() {
 }
 
 void SslCredentials(std::string credentials_directory) {
-  std::cout << "Client running with SslCredentials against a good server";
+  std::cout << "Client running with SslCredentials against a good server\n";
   // Load necessary files
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
   std::string key = read_file(credentials_directory + "client_key.pem");
@@ -75,14 +75,16 @@ void SslCredentials(std::string credentials_directory) {
   std::string user("world");
   std::string reply = client.Hello(user);
   if (reply != "Hello world") {
-    std::cout << "Expected to get \"Hello world\" but got something else.\n";
+    std::cout << "Did not behave as expected to get \"Hello world\" but got "
+                 "something else.\n";
   } else {
-    std::cout << "Greeter received: " << reply << std::endl;
+    std::cout << "Behaved as expectd - Greeter received: " << reply
+              << std::endl;
   }
 }
 
 void TlsCredentials(std::string credentials_directory) {
-  std::cout << "Client running with TlsCredentials against a good server";
+  std::cout << "Client running with TlsCredentials against a good server\n";
   // Load necessary files
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
   std::string key = read_file(credentials_directory + "client_key.pem");
@@ -109,16 +111,18 @@ void TlsCredentials(std::string credentials_directory) {
   std::string user("world");
   std::string reply = client.Hello(user);
   if (reply != "Hello world") {
-    std::cout << "Expected to get \"Hello world\" but got something else.\n";
+    std::cout << "Did not behave as expected to get \"Hello world\" but got "
+                 "something else.\n";
   } else {
-    std::cout << "Greeter received: " << reply << std::endl;
+    std::cout << "Behaved as expected. Greeter received: " << reply
+              << std::endl;
   }
 }
 
 void TlsCredentialsWithCrlProvider(std::string credentials_directory,
                                    std::string crl_directory) {
   std::cout << "Client running with TlsCredentials and revocation configured "
-               "against a revoked server";
+               "against a revoked server\n";
   // Load necessary files
   std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
   std::string key = read_file(credentials_directory + "client_key.pem");
@@ -149,14 +153,15 @@ void TlsCredentialsWithCrlProvider(std::string credentials_directory,
 
   // Create the channel with those creds and send a request
   std::shared_ptr<Channel> channel =
-      grpc::CreateChannel(kGoodServerAddress, channel_creds);
+      grpc::CreateChannel(kRevokedServerAddress, channel_creds);
   HelloClient client(channel);
   std::string user("world");
   std::string reply = client.Hello(user);
-  if (reply != "Hello world") {
-    std::cout << "Expected to get \"Hello world\" but got something else.\n";
+  std::cout << reply;
+  if (reply == "Hello world") {
+    std::cout << "Did not behave as expected - expected connection failed.\n";
   } else {
-    std::cout << "Greeter received: " << reply << std::endl;
+    std::cout << "Behaved as expected with failed connection.\n";
   }
 }
 
@@ -169,9 +174,13 @@ int main(int argc, char **argv) {
 
   std::string credentials_directory = argv[1];
   std::string crl_directory = credentials_directory + "/crl";
+  std::cout << "\n\n";
   SslCredentials(credentials_directory);
+  std::cout << "\n\n";
   TlsCredentials(credentials_directory);
+  std::cout << "\n\n";
   TlsCredentialsWithCrlProvider(credentials_directory, crl_directory);
+  std::cout << "\n\n";
 
   return 0;
 }

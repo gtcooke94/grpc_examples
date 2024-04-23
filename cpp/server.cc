@@ -3,6 +3,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include <grpcpp/grpcpp.h>
 
@@ -12,6 +13,9 @@ using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
+
+const std::string kGoodServerAddr = "localhost:8887";
+const std::string kRevokedServerAddr = "localhost:8886";
 
 class HelloServiceImpl final : public HelloService::Service {
   Status Hello(ServerContext *context, const HelloRequest *req,
@@ -33,8 +37,7 @@ void InsecureCredentials() {
   // TODO
 }
 
-void SslCredentials(std::string address, std::string credentials_directory) {
-  HelloServiceImpl service;
+void SslCredentials(std::string credentials_directory) {
   std::string key = read_file(credentials_directory + "server_key.pem");
   std::string cert = read_file(credentials_directory + "server_cert.pem");
   std::string revoked_cert =
@@ -51,14 +54,40 @@ void SslCredentials(std::string address, std::string credentials_directory) {
   sslOpts_revoked.pem_key_cert_pairs.push_back(pair);
 
   ServerBuilder builder;
-  builder.AddListeningPort(address, grpc::SslServerCredentials(sslOpts));
+  builder.AddListeningPort(kGoodServerAddr,
+                           grpc::SslServerCredentials(sslOpts));
+  HelloServiceImpl service;
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
   server->Wait();
 }
 
-void TlsCredentials() {
-  // TODO
+void TlsCredentialsRevoked(std::string credentials_directory,
+                           std::string crl_directory) {
+  std::string key = read_file(credentials_directory + "server_key.pem");
+  std::string revoked_cert =
+      read_file(credentials_directory + "server_cert_revoked.pem");
+  std::string ca_cert = read_file(credentials_directory + "ca_cert.pem");
+  std::vector<grpc::experimental::IdentityKeyCertPair> identity_key_cert_pairs =
+      {{key, revoked_cert}};
+  auto certificate_provider_ptr =
+      std::make_shared<grpc::experimental::StaticDataCertificateProvider>(
+          ca_cert, identity_key_cert_pairs);
+  grpc::experimental::TlsServerCredentialsOptions options(
+      certificate_provider_ptr);
+  // options.set_certificate_provider(certificate_provider_ptr);
+  options.watch_root_certs();
+  options.watch_identity_key_cert_pairs();
+  options.set_root_cert_name("");
+  options.set_crl_directory(credentials_directory + "/crl");
+  options.set_cert_request_type(GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
+  auto server_creds = grpc::experimental::TlsServerCredentials(options);
+  ServerBuilder builder;
+  builder.AddListeningPort(kRevokedServerAddr, server_creds);
+  HelloServiceImpl service;
+  builder.RegisterService(&service);
+  std::unique_ptr<Server> server(builder.BuildAndStart());
+  server->Wait();
 }
 
 void TlsCredentialsWithCrlDirectory() {
@@ -70,10 +99,6 @@ void TlsCredentialsWithCrlProvider() {
 }
 
 int main(int argc, char **argv) {
-  std::string server_addr = "localhost:8887";
-  std::string server_addr_revoked = "localhost:8886";
-  std::string server_addr_uses_crl = "localhost:8885";
-  std::string server_addr_uses_crl_revoked = "localhost:8884";
 
   if (argc < 2) {
     std::cout << "Enter path to this repo's creds directory as the second "
@@ -82,8 +107,15 @@ int main(int argc, char **argv) {
   }
 
   std::string credentials_directory = argv[1];
+  std::string crl_directory = credentials_directory + "/crl";
 
-  SslCredentials(server_addr, credentials_directory);
+  std::thread good_server(SslCredentials, credentials_directory);
+  std::thread bad_server(TlsCredentialsRevoked, credentials_directory,
+                         crl_directory);
+  std::cout << "Ctrl-C or kill the process to stop\n";
+  while (true) {
+    sleep(1000);
+  }
 
   // grpc::SslServerCredentialsOptions::PemKeyCertPair pair = {key, cert};
   // grpc::SslServerCredentialsOptions sslOpts;
@@ -97,7 +129,8 @@ int main(int argc, char **argv) {
   // sslOpts_revoked.pem_key_cert_pairs.push_back(revoked_pair);
 
   // ServerBuilder builder;
-  // builder.AddListeningPort(server_addr, grpc::SslServerCredentials(sslOpts));
+  // builder.AddListeningPort(server_addr,
+  // grpc::SslServerCredentials(sslOpts));
   // builder.RegisterService(&service);
   // std::unique_ptr<Server> server(builder.BuildAndStart());
 
@@ -105,7 +138,8 @@ int main(int argc, char **argv) {
   //   builder_revoked.AddListeningPort(server_addr_revoked,
   //                                    grpc::SslServerCredentials(sslOpts_revoked));
   //   builder_revoked.RegisterService(&service);
-  //   std::unique_ptr<Server> server_revoked(builder_revoked.BuildAndStart());
+  //   std::unique_ptr<Server>
+  //   server_revoked(builder_revoked.BuildAndStart());
 
   //   std::vector<grpc::experimental::IdentityKeyCertPair>
   //   identity_key_cert_pairs =
@@ -121,10 +155,11 @@ int main(int argc, char **argv) {
   //   options.set_root_cert_name("ca_cert");
   //   options.set_crl_directory(credentials_directory + "/crl");
   //   options.set_cert_request_type(GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
-  //   auto server_creds = grpc::experimental::TlsServerCredentials(options);
-  //   ServerBuilder builder_uses_crl;
-  //   builder_uses_crl.AddListeningPort(server_addr_uses_crl, server_creds);
-  //   builder_uses_crl.RegisterService(&service);
+  //   auto server_creds =
+  //   grpc::experimental::TlsServerCredentials(options); ServerBuilder
+  //   builder_uses_crl;
+  //   builder_uses_crl.AddListeningPort(server_addr_uses_crl,
+  //   server_creds); builder_uses_crl.RegisterService(&service);
   //   std::unique_ptr<Server>
   //   server_uses_crl(builder_uses_crl.BuildAndStart());
 
@@ -135,7 +170,8 @@ int main(int argc, char **argv) {
   //           ca_cert, identity_key_cert_pairs_revoked);
   //   grpc::experimental::TlsServerCredentialsOptions options_revoked(
   //       certificate_provider_ptr_revoked);
-  //   // options_revoked.set_certificate_provider(certificate_provider_ptr);
+  //   //
+  //   options_revoked.set_certificate_provider(certificate_provider_ptr);
   //   options_revoked.watch_root_certs();
   //   options_revoked.watch_identity_key_cert_pairs();
   //   options_revoked.set_root_cert_name("ca_cert");
@@ -151,11 +187,13 @@ int main(int argc, char **argv) {
   //   std::unique_ptr<Server> server_uses_crl_revoked(
   //       builder_uses_crl_revoked.BuildAndStart());
 
-  // std::cout << "Running servers with the following configuration:\n a server
+  // std::cout << "Running servers with the following configuration:\n a
+  // server
   // "
   //              "with a good certificate on 8887\n a revoked "
-  //              "certificate on 8886\n a good certificate and a crl active on
-  //              " "8885\n a revoked certificate and a crl active on 8884\n";
+  //              "certificate on 8886\n a good certificate and a crl active
+  //              on " "8885\n a revoked certificate and a crl active on
+  //              8884\n";
 
   // server->Wait();
   return 0;
