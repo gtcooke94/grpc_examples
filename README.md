@@ -23,10 +23,10 @@ $ ./cpp/bazel-bin/server $(pwd)/creds/
 
 ## Building and Running Golang
 ```
-# Run the clients
-$ go run client/main.go -credentials_directory $(pwd)/creds
+# Run the clients from the `go` subdirectory
+$ go run client/main.go -credentials_directory $(pwd)/../creds
 # Run the server
-$ go run server/main.go -credentials_directory $(pwd)/creds
+$ go run server/main.go -credentials_directory $(pwd)/../creds
 ```
 
 Stop the servers with ctrl-c or by killing the process.
