@@ -82,32 +82,65 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 		os.Exit(1)
 	}
 	fullServerAddr := serverAddr + ":" + port
-	conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
-	if err != nil {
-		fmt.Printf("Error during grpc.Dial %v\n", err)
-		os.Exit(1)
-	}
-	defer conn.Close()
-	client := pb.NewHelloServiceClient(conn)
-	req := &pb.HelloRequest{
-		Name: "World",
-	}
-	context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
-	resp, err := client.Hello(context, req)
-	defer cancel()
-	if shouldFail {
-		if err == nil {
-			fmt.Println("Should have failed but didn't")
-		} else {
-			fmt.Println("Handshake failed expectedly")
-		}
-	} else {
+	{
+		conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
 		if err != nil {
-			fmt.Printf("Error during client.Hello %v\n", err)
+			fmt.Printf("Error during grpc.Dial %v\n", err)
+			os.Exit(1)
+		}
+		defer conn.Close()
+		client := pb.NewHelloServiceClient(conn)
+		req := &pb.HelloRequest{
+			Name: "World",
+		}
+		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+		resp, err := client.Hello(context, req)
+		defer cancel()
+		if shouldFail {
+			if err == nil {
+				fmt.Println("Should have failed but didn't")
+			} else {
+				fmt.Println("Handshake failed expectedly")
+			}
 		} else {
-			fmt.Printf("Response: %v\n", resp.Response)
-			if resp.Response != "Hello World" {
-				fmt.Println("Didn't get correct response")
+			if err != nil {
+				fmt.Printf("Error during client.Hello %v\n", err)
+			} else {
+				fmt.Printf("Response: %v\n", resp.Response)
+				if resp.Response != "Hello World" {
+					fmt.Println("Didn't get correct response")
+				}
+			}
+		}
+	}
+	{
+		conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
+		if err != nil {
+			fmt.Printf("Error during grpc.Dial %v\n", err)
+			os.Exit(1)
+		}
+		defer conn.Close()
+		client := pb.NewHelloServiceClient(conn)
+		req := &pb.HelloRequest{
+			Name: "World",
+		}
+		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+		resp, err := client.Hello(context, req)
+		defer cancel()
+		if shouldFail {
+			if err == nil {
+				fmt.Println("Should have failed but didn't")
+			} else {
+				fmt.Println("Handshake failed expectedly")
+			}
+		} else {
+			if err != nil {
+				fmt.Printf("Error during client.Hello %v\n", err)
+			} else {
+				fmt.Printf("Response: %v\n", resp.Response)
+				if resp.Response != "Hello World" {
+					fmt.Println("Didn't get correct response")
+				}
 			}
 		}
 	}
