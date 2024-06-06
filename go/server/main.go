@@ -67,7 +67,7 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 	crlProvider := makeCrlProvider(filepath.Join(credsDirectory, "crl"))
 	defer crlProvider.Close()
 
-	options := &advancedtls.ServerOptions{
+	options := &advancedtls.Options{
 		IdentityOptions: advancedtls.IdentityCertificateOptions{
 			IdentityProvider: identityProvider,
 		},
@@ -78,7 +78,7 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 		VType:             advancedtls.CertVerification,
 	}
 
-	options.RevocationConfig = &advancedtls.RevocationConfig{
+	options.RevocationOptions = &advancedtls.RevocationOptions{
 		CRLProvider: crlProvider,
 	}
 

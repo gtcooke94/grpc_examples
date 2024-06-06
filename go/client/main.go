@@ -57,7 +57,7 @@ func makeIdentityProvider(revoked bool, credsDirectory string) certprovider.Prov
 }
 
 func runClientWithProviders(rootProvider certprovider.Provider, identityProvider certprovider.Provider, crlProvider advancedtls.CRLProvider, port string, shouldFail bool) {
-	options := &advancedtls.ClientOptions{
+	options := &advancedtls.Options{
 		// Setup the certificates to be used
 		IdentityOptions: advancedtls.IdentityCertificateOptions{
 			IdentityProvider: identityProvider,
@@ -67,11 +67,11 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 			RootProvider: rootProvider,
 		},
 		// Tell the client to verify the server cert
-		VType: advancedtls.CertVerification,
+		VerificationType: advancedtls.CertVerification,
 	}
 
 	// Configure revocation and CRLs
-	options.RevocationConfig = &advancedtls.RevocationConfig{
+	options.RevocationOptions = &advancedtls.RevocationOptions{
 		CRLProvider: crlProvider,
 	}
 
@@ -83,9 +83,9 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 	}
 	fullServerAddr := serverAddr + ":" + port
 	{
-		conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
+		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
 		if err != nil {
-			fmt.Printf("Error during grpc.Dial %v\n", err)
+			fmt.Printf("Error during grpc.NewClient %v\n", err)
 			os.Exit(1)
 		}
 		defer conn.Close()
@@ -114,9 +114,9 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 		}
 	}
 	{
-		conn, err := grpc.Dial(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
+		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
 		if err != nil {
-			fmt.Printf("Error during grpc.Dial %v\n", err)
+			fmt.Printf("Error during grpc.NewClient %v\n", err)
 			os.Exit(1)
 		}
 		defer conn.Close()
