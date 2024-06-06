@@ -171,7 +171,9 @@ func TlsWithCrlsToRevokedServer(credsDirectory string) {
 }
 
 func TlsWithCrls(credsDirectory string) {
+	fmt.Println("---------- Running TLS with CRLs to Good Server ----------")
 	TlsWithCrlsToGoodServer(credsDirectory)
+	fmt.Println("---------- Running TLS with CRLs to Revoked Server ----------")
 	TlsWithCrlsToRevokedServer(credsDirectory)
 }
 
@@ -187,6 +189,123 @@ func makeCrlProvider(crlDirectory string) *advancedtls.FileWatcherCRLProvider {
 	return provider
 }
 
+// --- Custom Verification ---
+func customVerificaitonSucceed(info *advancedtls.HandshakeVerificationInfo) (*advancedtls.PostHandshakeVerificationResults, error) {
+	// Looks at info for what you care about as the custom verification implementer
+	if info.ServerName != "localhost:8885" {
+		return nil, fmt.Errorf("expected servername of localhost:8885, got %v", info.ServerName)
+	}
+	return &advancedtls.PostHandshakeVerificationResults{}, nil
+}
+
+func customVerificaitonFail(info *advancedtls.HandshakeVerificationInfo) (*advancedtls.PostHandshakeVerificationResults, error) {
+	// Looks at info for what you care about as the custom verification implementer
+	if info.ServerName != "ExampleDesignedToFail" {
+		return nil, fmt.Errorf("expected servername of ExampleDesignedToFail, got %v", info.ServerName)
+	}
+	return &advancedtls.PostHandshakeVerificationResults{}, nil
+}
+
+func CustomVerification(credsDirectory string) {
+	fmt.Println("---------- Running TLS with Custom Verification ----------")
+	runClientWithCustomVerification(credsDirectory, goodServerPort)
+
+}
+
+func runClientWithCustomVerification(credsDirectory string, port string) {
+	rootProvider := makeRootProvider(credsDirectory)
+	defer rootProvider.Close()
+	identityProvider := makeIdentityProvider(false, credsDirectory)
+	defer identityProvider.Close()
+	fullServerAddr := serverAddr + ":" + port
+	{
+		// Run with the custom verification func that will succeed
+		options := &advancedtls.Options{
+			// Setup the certificates to be used
+			IdentityOptions: advancedtls.IdentityCertificateOptions{
+				IdentityProvider: identityProvider,
+			},
+			// Setup the roots to be used
+			RootOptions: advancedtls.RootCertificateOptions{
+				RootProvider: rootProvider,
+			},
+			// Tell the client to verify the server cert
+			VerificationType:           advancedtls.CertVerification,
+			AdditionalPeerVerification: customVerificaitonSucceed,
+		}
+
+		clientTLSCreds, err := advancedtls.NewClientCreds(options)
+
+		if err != nil {
+			fmt.Printf("Error %v\n", err)
+			os.Exit(1)
+		}
+		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
+		if err != nil {
+			fmt.Printf("Error during grpc.NewClient %v\n", err)
+			os.Exit(1)
+		}
+		defer conn.Close()
+		client := pb.NewHelloServiceClient(conn)
+		req := &pb.HelloRequest{
+			Name: "World",
+		}
+		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+		resp, err := client.Hello(context, req)
+		defer cancel()
+		if err != nil {
+			fmt.Printf("Error during client.Hello %v\n", err)
+		} else {
+			fmt.Printf("Response: %v\n", resp.Response)
+			if resp.Response != "Hello World" {
+				fmt.Println("Didn't get correct response")
+			}
+		}
+	}
+	{
+		// Run with the custom verification func that will fail
+		options := &advancedtls.Options{
+			// Setup the certificates to be used
+			IdentityOptions: advancedtls.IdentityCertificateOptions{
+				IdentityProvider: identityProvider,
+			},
+			// Setup the roots to be used
+			RootOptions: advancedtls.RootCertificateOptions{
+				RootProvider: rootProvider,
+			},
+			// Tell the client to verify the server cert
+			VerificationType:           advancedtls.CertVerification,
+			AdditionalPeerVerification: customVerificaitonFail,
+		}
+
+		clientTLSCreds, err := advancedtls.NewClientCreds(options)
+
+		if err != nil {
+			fmt.Printf("Error %v\n", err)
+			os.Exit(1)
+		}
+		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
+		if err != nil {
+			fmt.Printf("Error during grpc.NewClient %v\n", err)
+			os.Exit(1)
+		}
+		defer conn.Close()
+		client := pb.NewHelloServiceClient(conn)
+		req := &pb.HelloRequest{
+			Name: "World",
+		}
+		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+		resp, err := client.Hello(context, req)
+		defer cancel()
+		// This should fail
+		if err == nil {
+			fmt.Printf("Should have failed but didn't, got response: %v\n", resp)
+		} else {
+			fmt.Printf("Handshake failed expectedly with error: %v\n", err)
+		}
+	}
+}
+
 // -- SSL --
 
 // -- Insecure --
@@ -200,4 +319,5 @@ func main() {
 		os.Exit(1)
 	}
 	TlsWithCrls(*credsDirectory)
+	CustomVerification(*credsDirectory)
 }
