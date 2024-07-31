@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +13,7 @@ import (
 	pb "scratch/helloworld"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/tls/certprovider"
 	"google.golang.org/grpc/credentials/tls/certprovider/pemfile"
 	"google.golang.org/grpc/security/advancedtls"
@@ -307,9 +310,69 @@ func runClientWithCustomVerification(credsDirectory string, port string) {
 }
 
 // -- SSL --
+func SslCredentialsExample(credsDirectory string) {
+	fmt.Println("---------- Running client using NewTLS to create Credentials ----------")
+	cert, err := tls.LoadX509KeyPair(filepath.Join(credsDirectory, "client_cert.pem"), filepath.Join(credsDirectory, "client_key.pem"))
+	if err != nil {
+		os.Exit(1)
+	}
+	rootPem, err := os.ReadFile(filepath.Join(credsDirectory, "ca_cert.pem"))
+	root := x509.NewCertPool()
+	if !root.AppendCertsFromPEM(rootPem) {
+		os.Exit(1)
+	}
+
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      root,
+	}
+
+	creds := credentials.NewTLS(config)
+	port := goodServerPort
+	fullServerAddr := serverAddr + ":" + port
+	runWithCredentials(creds, fullServerAddr, true)
+
+}
 
 // -- Insecure --
 
+// All of these examples differ in how they configure the
+// credentials.TransportCredentials object. Once we have that, actually making
+// the calls with gRPC is the same.
+func runWithCredentials(creds credentials.TransportCredentials, fullServerAddr string, shouldSucceed bool) {
+	conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		fmt.Printf("Error during grpc.NewClient %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+	client := pb.NewHelloServiceClient(conn)
+	req := &pb.HelloRequest{
+		Name: "World",
+	}
+	context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+	resp, err := client.Hello(context, req)
+	defer cancel()
+
+	if shouldSucceed {
+		if err != nil {
+			fmt.Printf("Error during client.Hello %v\n", err)
+		} else {
+			fmt.Printf("Response: %v\n", resp.Response)
+			if resp.Response != "Hello World" {
+				fmt.Println("Didn't get correct response")
+			}
+		}
+	} else {
+		// This should fail
+		if err == nil {
+			fmt.Printf("Should have failed but didn't, got response: %v\n", resp)
+		} else {
+			fmt.Printf("Handshake failed expectedly with error: %v\n", err)
+		}
+	}
+
+}
 func main() {
 	credsDirectory := flag.String("credentials_directory", "", "Path to the creds directory of this repo")
 	flag.Parse()
@@ -320,4 +383,5 @@ func main() {
 	}
 	TlsWithCrls(*credsDirectory)
 	CustomVerification(*credsDirectory)
+	SslCredentialsExample(*credsDirectory)
 }
