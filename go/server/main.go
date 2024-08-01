@@ -19,6 +19,7 @@ import (
 
 type server struct {
 	pb.UnimplementedHelloServiceServer
+	name string
 }
 
 const credRefreshInterval = 1 * time.Minute
@@ -27,7 +28,7 @@ const revokedServerWithCrlPort int = 8884
 const insecurePort int = 8883
 
 func (s *server) Hello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloResponse, error) {
-	fmt.Printf("Received: %v\n", in.GetName())
+	fmt.Printf("%v Received: %v\n", s.name, in.GetName())
 	return &pb.HelloResponse{Response: "Hello " + in.GetName()}, nil
 }
 
@@ -47,21 +48,21 @@ func TlsServers(credentialsDirectory string) {
 
 func InsecureServer(credentialsDirectory string) {
 	go func() {
-		createAndRunInsecureServer(credentialsDirectory, insecurePort)
+		createAndRunInsecureServer(insecurePort)
 	}()
 	fmt.Printf(`Running server with the following configuration:
     insecure credentials on 8883
 `)
 }
 
-func createAndRunInsecureServer(credentialsDirectory string, port int) {
+func createAndRunInsecureServer(port int) {
 	creds := insecure.NewCredentials()
 	s := grpc.NewServer(grpc.Creds(creds))
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		fmt.Printf("Failed to listen: %v\n", err)
 	}
-	pb.RegisterHelloServiceServer(s, &server{})
+	pb.RegisterHelloServiceServer(s, &server{name: "Insecure Server"})
 	if err := s.Serve(lis); err != nil {
 		fmt.Printf("Failed to serve: %v\n", err)
 		os.Exit(1)
@@ -86,7 +87,7 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 			RootProvider: rootProvider,
 		},
 		RequireClientCert: true,
-		VType:             advancedtls.CertVerification,
+		VerificationType:  advancedtls.CertVerification,
 	}
 
 	options.RevocationOptions = &advancedtls.RevocationOptions{
@@ -104,7 +105,11 @@ func createAndRunTlsServer(credsDirectory string, useRevokedCert bool, port int)
 	if err != nil {
 		fmt.Printf("Failed to listen: %v\n", err)
 	}
-	pb.RegisterHelloServiceServer(s, &server{})
+	name := "Good TLS Server"
+	if useRevokedCert {
+		name = "Revoked TLS Server"
+	}
+	pb.RegisterHelloServiceServer(s, &server{name: name})
 	if err := s.Serve(lis); err != nil {
 		fmt.Printf("Failed to serve: %v\n", err)
 		os.Exit(1)
@@ -167,7 +172,7 @@ func main() {
 	}
 	TlsServers(*credentialsDirectory)
 	InsecureServer(*credentialsDirectory)
-	fmt.Printf("Ctrl-C or kill the process to stop")
+	fmt.Printf("Ctrl-C or kill the process to stop\n")
 	for {
 		time.Sleep(1 * time.Second)
 	}

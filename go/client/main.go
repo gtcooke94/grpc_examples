@@ -329,6 +329,7 @@ func SslCredentialsExample(credsDirectory string) {
 		RootCAs:      root,
 	}
 
+	// Directly create credentials from a tls.Config.
 	creds := credentials.NewTLS(config)
 	port := goodServerPort
 	fullServerAddr := serverAddr + ":" + port
