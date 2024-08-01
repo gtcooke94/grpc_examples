@@ -87,68 +87,7 @@ func runClientWithProviders(rootProvider certprovider.Provider, identityProvider
 		os.Exit(1)
 	}
 	fullServerAddr := serverAddr + ":" + port
-	{
-		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
-		if err != nil {
-			fmt.Printf("Error during grpc.NewClient %v\n", err)
-			os.Exit(1)
-		}
-		defer conn.Close()
-		client := pb.NewHelloServiceClient(conn)
-		req := &pb.HelloRequest{
-			Name: "World",
-		}
-		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
-		resp, err := client.Hello(context, req)
-		defer cancel()
-		if shouldFail {
-			if err == nil {
-				fmt.Println("Should have failed but didn't")
-			} else {
-				fmt.Println("Handshake failed expectedly")
-			}
-		} else {
-			if err != nil {
-				fmt.Printf("Error during client.Hello %v\n", err)
-			} else {
-				fmt.Printf("Response: %v\n", resp.Response)
-				if resp.Response != "Hello World" {
-					fmt.Println("Didn't get correct response")
-				}
-			}
-		}
-	}
-	{
-		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
-		if err != nil {
-			fmt.Printf("Error during grpc.NewClient %v\n", err)
-			os.Exit(1)
-		}
-		defer conn.Close()
-		client := pb.NewHelloServiceClient(conn)
-		req := &pb.HelloRequest{
-			Name: "World",
-		}
-		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
-		resp, err := client.Hello(context, req)
-		defer cancel()
-		if shouldFail {
-			if err == nil {
-				fmt.Println("Should have failed but didn't")
-			} else {
-				fmt.Println("Handshake failed expectedly")
-			}
-		} else {
-			if err != nil {
-				fmt.Printf("Error during client.Hello %v\n", err)
-			} else {
-				fmt.Printf("Response: %v\n", resp.Response)
-				if resp.Response != "Hello World" {
-					fmt.Println("Didn't get correct response")
-				}
-			}
-		}
-	}
+	runWithCredentials(clientTLSCreds, fullServerAddr, !shouldFail)
 }
 
 func TlsWithCrlsToGoodServer(credsDirectory string) {
@@ -245,27 +184,7 @@ func runClientWithCustomVerification(credsDirectory string, port string) {
 			fmt.Printf("Error %v\n", err)
 			os.Exit(1)
 		}
-		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
-		if err != nil {
-			fmt.Printf("Error during grpc.NewClient %v\n", err)
-			os.Exit(1)
-		}
-		defer conn.Close()
-		client := pb.NewHelloServiceClient(conn)
-		req := &pb.HelloRequest{
-			Name: "World",
-		}
-		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
-		resp, err := client.Hello(context, req)
-		defer cancel()
-		if err != nil {
-			fmt.Printf("Error during client.Hello %v\n", err)
-		} else {
-			fmt.Printf("Response: %v\n", resp.Response)
-			if resp.Response != "Hello World" {
-				fmt.Println("Didn't get correct response")
-			}
-		}
+		runWithCredentials(clientTLSCreds, fullServerAddr, true)
 	}
 	{
 		// Run with the custom verification func that will fail
@@ -289,25 +208,7 @@ func runClientWithCustomVerification(credsDirectory string, port string) {
 			fmt.Printf("Error %v\n", err)
 			os.Exit(1)
 		}
-		conn, err := grpc.NewClient(fullServerAddr, grpc.WithTransportCredentials(clientTLSCreds))
-		if err != nil {
-			fmt.Printf("Error during grpc.NewClient %v\n", err)
-			os.Exit(1)
-		}
-		defer conn.Close()
-		client := pb.NewHelloServiceClient(conn)
-		req := &pb.HelloRequest{
-			Name: "World",
-		}
-		context, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
-		resp, err := client.Hello(context, req)
-		defer cancel()
-		// This should fail
-		if err == nil {
-			fmt.Printf("Should have failed but didn't, got response: %v\n", resp)
-		} else {
-			fmt.Printf("Handshake failed expectedly with error: %v\n", err)
-		}
+		runWithCredentials(clientTLSCreds, fullServerAddr, false)
 	}
 }
 
