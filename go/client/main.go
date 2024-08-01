@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/credentials/tls/certprovider"
 	"google.golang.org/grpc/credentials/tls/certprovider/pemfile"
 	"google.golang.org/grpc/security/advancedtls"
@@ -23,6 +24,7 @@ const credRefreshInterval = 1 * time.Minute
 const serverAddr = "localhost"
 const goodServerPort string = "8885"
 const revokedServerPort string = "8884"
+const insecurePort string = "8883"
 
 // -- TLS --
 
@@ -335,6 +337,15 @@ func SslCredentialsExample(credsDirectory string) {
 }
 
 // -- Insecure --
+func InsecureCredentialsExample(credsDirectory string) {
+	fmt.Println("---------- Running client using Insecure Credentials ----------")
+	creds := insecure.NewCredentials()
+	port := insecurePort
+	fullServerAddr := serverAddr + ":" + port
+	runWithCredentials(creds, fullServerAddr, true)
+}
+
+// -- Main and Runner --
 
 // All of these examples differ in how they configure the
 // credentials.TransportCredentials object. Once we have that, actually making
@@ -384,4 +395,5 @@ func main() {
 	TlsWithCrls(*credsDirectory)
 	CustomVerification(*credsDirectory)
 	SslCredentialsExample(*credsDirectory)
+	InsecureCredentialsExample(*credsDirectory)
 }
